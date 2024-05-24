@@ -45,7 +45,7 @@ def load_model(model:str)->torch.jit.ScriptModule:
     - torch model (torch.jit.ScriptModule)
   """
   # model Directory
-  packageDir = find_spec("aimDIAS").submodule_search_locations[0]
+  packageDir = find_spec("aimnet2ase").submodule_search_locations[0]
   modelsDir = os.path.join(packageDir, "models")
 
   # load model 
