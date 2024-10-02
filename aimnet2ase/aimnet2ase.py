@@ -8,6 +8,7 @@ from IPython.display import clear_output
 from ase import Atoms
 from ase.io import read
 from io import StringIO
+import numpy as np
 
 
 models = lambda : print("""
@@ -56,7 +57,8 @@ def load_model(model:str)->torch.jit.ScriptModule:
     modelPath = os.path.join(modelsDir, model)
     return torch.jit.load(modelPath)
   else:
-    raise ValueError(f"'{model}' <-- is not a supported model. Check available model names via `aimnet2ase.models()`")
+    assert os.path.exists(model), "model not found"
+    return torch.jit.load(model)
 
 
 
@@ -105,6 +107,54 @@ def aimnet2_get_energy(xyz_string:str, charge:int, model:str)->float:
   potential_energy = mol.get_potential_energy()
  
   return potential_energy
+
+
+
+def aimnet2_get_force(xyz_string:str, charge:int, model:str)->np.array:
+  """
+  Description
+  -----------
+  get aimnet2 force in eV/A
+
+  Parameters
+  ----------
+  - xyz_string (str) : xyz format string
+  - charge (int) : molecular total chage
+  - model (str) : AIMNet2 ML potential model
+
+  Supported models
+  ----------------
+  - b973c      : RKS B97-3c     | H B C N O F Si P S Cl As Se Br I
+  - wb97m-d3   : RKS wB97M-D3   | H B C N O F Si P S Cl As Se Br I
+
+  Returns
+  -------
+  - force array in eV/A 
+  """
+  # convert xyz format --> ase.Atoms
+  mol = ase.io.read(StringIO(xyz_string), format="xyz")
+  
+  # check compatibility between the AIMNet2 model and the elements in the molecule
+  supporting_elements = {"H", "B", "C", "N", "O", "F", "Si", "P", "S", "Cl", "As", "Se", "Br", "I"}
+
+  elements_in_mol = set(mol.get_chemical_symbols())
+  unsupported_elements = elements_in_mol - supporting_elements
+  if len(unsupported_elements) != 0:
+    print(f"{unsupported_elements} are not compatible with the AIMNet2")
+    return None
+
+  # AIMNet2 charge compatibility
+  if charge not in [-2, -1, 0, 1, 2]:
+    print(f"AIMNet2 support not {charge} charged species")
+    return None
+
+  # set AIMNet2 calculator
+  Calculator = AIMNet2Calculator(load_model(model),charge=charge)
+  mol.calc = Calculator
+
+  potential_force = mol.get_forces()
+ 
+  return potential_force
 
 
 def aimnet2_optimize(xyz_string:str, charge:int, model:str, clear_log=True)->str:
